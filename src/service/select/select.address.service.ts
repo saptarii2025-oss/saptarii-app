@@ -86,7 +86,7 @@ export const selectAddresses = async (
         addressAttempts:
           updatedAttempts >= MAX_ADDRESS_ATTEMPTS ? 0 : updatedAttempts,
         addressBlockedUntil:
-          updatedAttempts >= MAX_ADDRESS_ATTEXPTS
+          updatedAttempts >= MAX_ADDRESS_ATTEMPTS
             ? new Date(Date.now() + ADDRESS_BLOCKED_UNTIL)
             : null,
       });
