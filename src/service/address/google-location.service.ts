@@ -97,10 +97,10 @@ const findGoogleLocationByPlaceId = async (
     };
   }
 };
-
+ 
 const getPlaceIdFromGoogle = async (query: string): Promise<string | null> => {
   const res = await fetch(
-    `${GOOGLE_PLACES_URL}/json?input=${encodeURIComponent(
+    `https://maps.googleapis.com/maps/api/place/autocomplete/json?input=${encodeURIComponent(
       query,
     )}&types=geocode&language=ro&components=country:ro&key=${GOOGLE_API_KEY}`,
   );
@@ -112,7 +112,7 @@ const getPlaceDetailsFromGoogle = async (
   placeId: string,
 ): Promise<GooglePlaceDetails | null> => {
   const res = await fetch(
-    `${GOOGLE_PLACES_URL}/details/json?place_id=${placeId}&fields=formatted_address,address_components,geometry&language=ro&key=${GOOGLE_API_KEY}`,
+    `https://maps.googleapis.com/maps/api/place/details/json?place_id=${placeId}&fields=formatted_address,address_components,geometry&language=ro&key=${GOOGLE_API_KEY}`,
   );
   const json = await res.json();
   return json.result ?? null;
