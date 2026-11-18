@@ -17,17 +17,6 @@ const findGoogleLocationByQuery = async (
     };
   }
 
-  // Check if billing is enabled
-  if (process.env.NODE_ENV === 'production' && !process.env.GOOGLE_BILLING_ENABLED) {
-    return {
-      data: null,
-      error: {
-        message: "Google Places API requires billing to be enabled",
-        reason: Reason.EXTERNAL_API_ERROR,
-      },
-    };
-  }
-
   try {
     const placeId = await getPlaceIdFromGoogle(query);
     if (!placeId) {
@@ -101,58 +90,70 @@ const findGoogleLocationByPlaceId = async (
 const getPlaceIdFromGoogle = async (query: string): Promise<string | null> => { 
   const baseUrl = GOOGLE_PLACES_URL?.endsWith('/') ? GOOGLE_PLACES_URL.slice(0, -1) : GOOGLE_PLACES_URL;
   
-  const res = await fetch(
-    `${baseUrl}/autocomplete/json?input=${encodeURIComponent(
-      query,
-    )}&types=geocode&language=ro&components=country:ro&key=${GOOGLE_API_KEY}`,
-  );
+  const res = await fetch(`${baseUrl}/places:autocomplete`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-Goog-Api-Key": GOOGLE_API_KEY!,
+    },
+    body: JSON.stringify({
+      input: query,
+      languageCode: "ro",
+      includedRegionCodes: ["ro"],
+    }),
+  });
   
   const text = await res.text();
   try {
     const json = JSON.parse(text);
-    return json.predictions?.[0]?.place_id ?? null;
+    const firstSuggestion = json.suggestions?.[0]?.placePrediction;
+    return firstSuggestion?.placeId ?? null;
   } catch (e) {
     console.error("Google Places Autocomplete non-JSON response:", text);
-    throw new Error("Google Places API returned an invalid response (HTML). Check your GOOGLE_PLACES_URL config.");
+    throw new Error("Google Places API returned an invalid response. Check your GOOGLE_PLACES_URL config.");
   }
 };
 
 const getPlaceDetailsFromGoogle = async (
   placeId: string,
-): Promise<GooglePlaceDetails | null> => {
+): Promise<any | null> => {
   const baseUrl = GOOGLE_PLACES_URL?.endsWith('/') ? GOOGLE_PLACES_URL.slice(0, -1) : GOOGLE_PLACES_URL;
 
-  const res = await fetch(
-    `${baseUrl}/details/json?place_id=${placeId}&fields=formatted_address,address_components,geometry&language=ro&key=${GOOGLE_API_KEY}`,
-  );
+  const res = await fetch(`${baseUrl}/places/${placeId}`, {
+    method: "GET",
+    headers: {
+      "X-Goog-Api-Key": GOOGLE_API_KEY!,
+      "X-Goog-FieldMask": "formattedAddress,addressComponents,location",
+    },
+  });
   
   const text = await res.text();
   try {
     const json = JSON.parse(text);
-    return json.result ?? null;
+    return json?.id ? json : null;
   } catch (e) {
     console.error("Google Places Details non-JSON response:", text);
-    throw new Error("Google Places API returned an invalid response (HTML). Check your GOOGLE_PLACES_URL config.");
+    throw new Error("Google Places API returned an invalid response. Check your GOOGLE_PLACES_URL config.");
   }
 };
 
 const findAddressComponentLongName = (
-  details: GooglePlaceDetails,
+  details: any,
   ...types: string[]
 ): string => {
   return (
-    details.address_components.find((c) =>
+    details.addressComponents?.find((c: any) =>
       types.some((t) => c.types.includes(t)),
-    )?.long_name ?? ""
+    )?.longText ?? ""
   );
 };
 
 const mapGoogleDetailsToAddress = (
   placeId: string,
-  details: GooglePlaceDetails,
+  details: any,
 ): SingleAddressResponseDto => ({
   placeId,
-  displayName: details.formatted_address,
+  displayName: details.formattedAddress,
   street: [
     findAddressComponentLongName(details, "route"),
     findAddressComponentLongName(details, "street_number"),
@@ -167,8 +168,8 @@ const mapGoogleDetailsToAddress = (
   county: findAddressComponentLongName(details, "administrative_area_level_1"),
   postalCode: findAddressComponentLongName(details, "postal_code"),
   country: findAddressComponentLongName(details, "country"),
-  latitude: details.geometry.location.lat,
-  longitude: details.geometry.location.lng,
+  latitude: details.location?.latitude ?? 0,
+  longitude: details.location?.longitude ?? 0,
   createdAt: new Date(),
   updatedAt: new Date(),
 });

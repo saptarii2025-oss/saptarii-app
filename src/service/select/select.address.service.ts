@@ -3,7 +3,6 @@ import { Session } from "next-auth";
 import { ADDRESS_BLOCKED_UNTIL, MAX_ADDRESS_ATTEMPTS } from "@/constants";
 import { UserRole } from "@/generated/prisma";
 import { findById, update } from "@/service/user/user.service";
-import { GooglePrediction } from "@/types";
 import {
   GenericSelectDataDto,
   PaginatedResponseDto,
@@ -49,25 +48,36 @@ export const selectAddresses = async (
     }
   }
 
-  const url = `${GOOGLE_PLACES_URL}/autocomplete/json?input=${encodeURIComponent(
-    query,
-  )}&key=${GOOGLE_API_KEY}&components=country:ro`;
+  const baseUrl = GOOGLE_PLACES_URL?.endsWith('/') ? GOOGLE_PLACES_URL.slice(0, -1) : GOOGLE_PLACES_URL;
+  const url = `${baseUrl}/places:autocomplete`;
 
   try {
-    const response = await fetch(url);
+    const response = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Goog-Api-Key": GOOGLE_API_KEY,
+      },
+      body: JSON.stringify({
+        input: query,
+        languageCode: "ro",
+        includedRegionCodes: ["ro"],
+      }),
+    });
+
     const data = await response.json();
 
-    if (!["OK", "ZERO_RESULTS"].includes(data.status)) {
+    if (!response.ok) {
       return {
         data: null,
         error: {
-          message: "Google Places API Error",
+          message: data.error?.message || "Google Places API Error",
           reason: Reason.EXTERNAL_API_ERROR,
         },
       };
     }
 
-    const predictions: GooglePrediction[] = data.predictions || [];
+    const suggestions: any[] = data.suggestions || [];
 
     if (user.data.role !== UserRole.ADMIN) {
       const updatedAttempts = user.data.addressAttempts + 1;
@@ -76,7 +86,7 @@ export const selectAddresses = async (
         addressAttempts:
           updatedAttempts >= MAX_ADDRESS_ATTEMPTS ? 0 : updatedAttempts,
         addressBlockedUntil:
-          updatedAttempts >= MAX_ADDRESS_ATTEMPTS
+          updatedAttempts >= MAX_ADDRESS_ATTEXPTS
             ? new Date(Date.now() + ADDRESS_BLOCKED_UNTIL)
             : null,
       });
@@ -88,11 +98,11 @@ export const selectAddresses = async (
 
     const result = {
       data: {
-        content: predictions.map((prediction) => ({
-          label: prediction.description,
-          value: prediction.place_id,
+        content: suggestions.map((item) => ({
+          label: item.placePrediction.text.text,
+          value: item.placePrediction.placeId,
         })),
-        totalCount: predictions.length,
+        totalCount: suggestions.length,
         pageCount: 1,
         hasMore: false,
       },
