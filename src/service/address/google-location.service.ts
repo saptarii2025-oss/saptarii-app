@@ -98,24 +98,42 @@ const findGoogleLocationByPlaceId = async (
   }
 };
  
-const getPlaceIdFromGoogle = async (query: string): Promise<string | null> => {
+const getPlaceIdFromGoogle = async (query: string): Promise<string | null> => { 
+  const baseUrl = GOOGLE_PLACES_URL?.endsWith('/') ? GOOGLE_PLACES_URL.slice(0, -1) : GOOGLE_PLACES_URL;
+  
   const res = await fetch(
-    `https://maps.googleapis.com/maps/api/place/autocomplete/json?input=${encodeURIComponent(
+    `${baseUrl}/autocomplete/json?input=${encodeURIComponent(
       query,
     )}&types=geocode&language=ro&components=country:ro&key=${GOOGLE_API_KEY}`,
   );
-  const json = await res.json();
-  return json.predictions?.[0]?.place_id ?? null;
+  
+  const text = await res.text();
+  try {
+    const json = JSON.parse(text);
+    return json.predictions?.[0]?.place_id ?? null;
+  } catch (e) {
+    console.error("Google Places Autocomplete non-JSON response:", text);
+    throw new Error("Google Places API returned an invalid response (HTML). Check your GOOGLE_PLACES_URL config.");
+  }
 };
 
 const getPlaceDetailsFromGoogle = async (
   placeId: string,
 ): Promise<GooglePlaceDetails | null> => {
+  const baseUrl = GOOGLE_PLACES_URL?.endsWith('/') ? GOOGLE_PLACES_URL.slice(0, -1) : GOOGLE_PLACES_URL;
+
   const res = await fetch(
-    `https://maps.googleapis.com/maps/api/place/details/json?place_id=${placeId}&fields=formatted_address,address_components,geometry&language=ro&key=${GOOGLE_API_KEY}`,
+    `${baseUrl}/details/json?place_id=${placeId}&fields=formatted_address,address_components,geometry&language=ro&key=${GOOGLE_API_KEY}`,
   );
-  const json = await res.json();
-  return json.result ?? null;
+  
+  const text = await res.text();
+  try {
+    const json = JSON.parse(text);
+    return json.result ?? null;
+  } catch (e) {
+    console.error("Google Places Details non-JSON response:", text);
+    throw new Error("Google Places API returned an invalid response (HTML). Check your GOOGLE_PLACES_URL config.");
+  }
 };
 
 const findAddressComponentLongName = (
