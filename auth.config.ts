@@ -1,13 +1,13 @@
+
 import type { NextAuthConfig } from "next-auth";
 
 import Discord from "next-auth/providers/discord";
 
-// import Google from "next-auth/providers/google";
-
 export default {
   providers: [
-    // Google,
-    Discord,
+    Discord({
+      issuer: "https://discord.com",
+    }),
   ],
   callbacks: {
     authorized({ auth }) {
